@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 
 interface User {
   fullName: string;
@@ -12,148 +13,118 @@ interface User {
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (fullName: string, email: string, phone: string, password: string) => Promise<boolean>;
+  register: (
+    fullName: string,
+    email: string,
+    phone: string,
+    password: string
+  ) => Promise<boolean>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
 
-  // 🟡 Lấy user từ localStorage khi load trang
+  // ================= INIT APP =================
   useEffect(() => {
-    // Ensure app starts signed-out: clear any session auth on load
+    // 🔹 Load user khi F5 / reload
     try {
-      sessionStorage.removeItem('authToken');
-      sessionStorage.removeItem('loggedInUser');
-    } catch (e) {}
-
-    // Seed localStorage users so login works when mock API isn't running
-    const existing = localStorage.getItem('users');
-    if (!existing) {
-      const seed = [
-        { id: 'u_admin', fullName: 'Administrator', email: 'admin@gmail.com', phone: '', password: '123456', role: 'admin' },
-        { id: 'u_tanviet', fullName: 'Tan Viet', email: 'tanviet3105@gmail.com', phone: '', password: 'Tythemen@123', role: 'user' }
-      ];
-      localStorage.setItem('users', JSON.stringify(seed));
+      const storedUser = sessionStorage.getItem("loggedInUser");
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+    } catch {
+      setUser(null);
     }
+
+    // 🔹 Seed user (KHÔNG ghi đè user cũ)
+    const seedUsers: User[] = [
+      {
+        id: "u_admin",
+        fullName: "Administrator",
+        email: "admin@gmail.com",
+        phone: "",
+        password: "123456",
+        role: "admin",
+      },
+      {
+        id: "u_user",
+        fullName: "Tan Viet",
+        email: "tanviet3105@gmail.com",
+        phone: "",
+        password: "Tythemen@123",
+        role: "user",
+      },
+    ];
+
+    const existingUsers: User[] = JSON.parse(
+      localStorage.getItem("users") || "[]"
+    );
+
+    const mergedUsers = [...existingUsers];
+
+    seedUsers.forEach((seed) => {
+      if (!mergedUsers.some((u) => u.email === seed.email)) {
+        mergedUsers.push(seed);
+      }
+    });
+
+    localStorage.setItem("users", JSON.stringify(mergedUsers));
   }, []);
 
-  // 🟢 Xử lý đăng ký -> try API, fallback to localStorage
-  const register = async (fullName: string, email: string, phone: string, password: string): Promise<boolean> => {
-    const API = (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000';
-    try {
-      const res = await fetch(`${API}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, email, phone, password }),
-      });
-      if (!res.ok) return false;
-      const data = await res.json();
-      setUser(data.user);
-      try { sessionStorage.setItem('loggedInUser', JSON.stringify(data.user)); } catch (e) {}
-      if (data.token) try { sessionStorage.setItem('authToken', data.token); } catch (e) {}
+  // ================= REGISTER =================
+  const register = async (
+    fullName: string,
+    email: string,
+    phone: string,
+    password: string
+  ): Promise<boolean> => {
+    const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
 
-      // Persist profile data keyed by email so frontend-only profile can be shown
-      try {
-        const profilesRaw = localStorage.getItem('user_profiles') || '{}';
-        const profiles = JSON.parse(profilesRaw || '{}');
-        profiles[email] = { fullName, email, phone, avatar: '' };
-        localStorage.setItem('user_profiles', JSON.stringify(profiles));
-      } catch (e) {}
-      return true;
-    } catch (e) {
-      // fallback to localStorage
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      if (users.some((u: User) => u.email === email)) return false;
-      const newUser: User = { fullName, email, phone, password };
-      users.push(newUser);
-      localStorage.setItem("users", JSON.stringify(users));
-      setUser(newUser);
-      try { sessionStorage.setItem('loggedInUser', JSON.stringify(newUser)); } catch (e) {}
+    if (users.some((u) => u.email === email)) return false;
 
-      // Persist profile locally for frontend-only profile display
-      try {
-        const profilesRaw = localStorage.getItem('user_profiles') || '{}';
-        const profiles = JSON.parse(profilesRaw || '{}');
-        profiles[email] = { fullName, email, phone, avatar: '' };
-        localStorage.setItem('user_profiles', JSON.stringify(profiles));
-      } catch (err) {}
-      return true;
-    }
+    const newUser: User = { fullName, email, phone, password };
+    const updatedUsers = [...users, newUser];
+
+    localStorage.setItem("users", JSON.stringify(updatedUsers));
+    sessionStorage.setItem("loggedInUser", JSON.stringify(newUser));
+    setUser(newUser);
+
+    return true;
   };
 
-  // 🟢 Xử lý đăng nhập -> try API, fallback to localStorage
-  const login = async (email: string, password: string): Promise<boolean> => {
-    const API = (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000';
-    try {
-      const res = await fetch(`${API}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      if (!res.ok) {
-        // Check for admin fallback
-        if (email === 'admin@gmail.com' && password === '123456') {
-          const adminUser: User = { fullName: 'Administrator', email, phone: '', password };
-          setUser(adminUser);
-          try { sessionStorage.setItem('loggedInUser', JSON.stringify(adminUser)); } catch (e) {}
-          return true;
-        }
-        return false;
-      }
-      const data = await res.json();
-      setUser(data.user);
-      try { sessionStorage.setItem('loggedInUser', JSON.stringify(data.user)); } catch (e) {}
-      if (data.token) try { sessionStorage.setItem('authToken', data.token); } catch (e) {}
+  // ================= LOGIN =================
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<boolean> => {
+    const users: User[] = JSON.parse(localStorage.getItem("users") || "[]");
 
-      // On login, if we have a stored profile for this email, keep it in localStorage.user_profiles (no-op otherwise)
-      try {
-        const profilesRaw = localStorage.getItem('user_profiles') || '{}';
-        const profiles = JSON.parse(profilesRaw || '{}');
-        if (!profiles[email]) {
-          // If API returned no profile, create a minimal record
-          profiles[email] = { fullName: data.user.fullName || '', email, phone: (data.user as any).phone || '', avatar: '' };
-          localStorage.setItem('user_profiles', JSON.stringify(profiles));
-        }
-      } catch (e) {}
-      return true;
-    } catch (e) {
-      // fallback to previous localStorage logic
-      if (email === 'admin@gmail.com' && password === '123456') {
-        const adminUser: User = { fullName: 'Administrator', email, phone: '', password };
-        setUser(adminUser);
-        try { sessionStorage.setItem('loggedInUser', JSON.stringify(adminUser)); } catch (e) {}
-        return true;
-      }
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      const foundUser = users.find((u: User) => u.email === email && u.password === password);
-      if (foundUser) {
-        setUser(foundUser);
-        try { sessionStorage.setItem('loggedInUser', JSON.stringify(foundUser)); } catch (e) {}
-        // Ensure local profile exists for fallback login
-        try {
-          const profilesRaw = localStorage.getItem('user_profiles') || '{}';
-          const profiles = JSON.parse(profilesRaw || '{}');
-          if (!profiles[email]) {
-            profiles[email] = { fullName: foundUser.fullName || '', email, phone: foundUser.phone || '', avatar: '' };
-            localStorage.setItem('user_profiles', JSON.stringify(profiles));
-          }
-        } catch (e) {}
-        return true;
-      }
-      return false;
-    }
+    const foundUser = users.find(
+      (u) => u.email === email && u.password === password
+    );
+
+    if (!foundUser) return false;
+
+    sessionStorage.setItem("loggedInUser", JSON.stringify(foundUser));
+    setUser(foundUser);
+    return true;
   };
 
-  // 🔴 Đăng xuất
+  // ================= LOGOUT =================
   const logout = () => {
     setUser(null);
+
     try {
-      sessionStorage.removeItem('loggedInUser');
-      sessionStorage.removeItem('authToken');
-    } catch (e) {}
+      sessionStorage.removeItem("loggedInUser");
+      sessionStorage.removeItem("authToken");
+      localStorage.removeItem("cart"); // clear cart khi logout
+    } catch {}
+
+    // ✅ CHỈ logout mới reload
+    window.location.href = "/";
   };
 
   return (
@@ -163,6 +134,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+// ================= HOOK =================
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

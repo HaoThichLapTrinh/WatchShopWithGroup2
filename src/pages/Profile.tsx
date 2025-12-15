@@ -1,9 +1,12 @@
 // src/pages/Profile.tsx
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useWishlist } from '../contexts/WishlistContext';
+import { useCart } from '../contexts/CartContext';
 import { toast } from 'react-toastify';
-import { User, Lock, MapPin, Package, Camera, Save, Edit2 } from 'lucide-react';
+import { User, Lock, MapPin, Package, Camera, Save, Edit2, Heart, ShoppingCart, Trash2 } from 'lucide-react';
 
 interface UserProfile {
   fullName: string;
@@ -19,8 +22,11 @@ interface UserProfile {
 }
 
 const Profile: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'info' | 'password' | 'address' | 'orders'>('info');
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'info' | 'password' | 'address' | 'orders' | 'wishlist'>('info');
   const [isEditing, setIsEditing] = useState(false);
+  const { wishlist, removeFromWishlist, clearWishlist } = useWishlist();
+  const { addToCart } = useCart();
   
   const [profile, setProfile] = useState<UserProfile>({
     fullName: 'Khách hàng',
@@ -35,7 +41,6 @@ const Profile: React.FC = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    // Load stored profiles map and populate profile for logged-in user
     try {
       const profilesRaw = localStorage.getItem('user_profiles') || '{}';
       const profiles = JSON.parse(profilesRaw || '{}');
@@ -51,7 +56,6 @@ const Profile: React.FC = () => {
         return;
       }
 
-      // Fallback: if legacy single profile exists, use it
       const legacy = localStorage.getItem('userProfile');
       if (legacy) {
         const lp = JSON.parse(legacy);
@@ -80,15 +84,20 @@ const Profile: React.FC = () => {
   };
 
   const handleSaveProfile = () => {
-    // Save into per-email profiles map if logged in
     try {
       if (user && user.email) {
         const profilesRaw = localStorage.getItem('user_profiles') || '{}';
         const profiles = JSON.parse(profilesRaw || '{}');
-        profiles[user.email] = { ...profiles[user.email], fullName: profile.fullName, email: profile.email, phone: profile.phone, avatar: profile.avatar, addresses: profile.addresses };
+        profiles[user.email] = { 
+          ...profiles[user.email], 
+          fullName: profile.fullName, 
+          email: profile.email, 
+          phone: profile.phone, 
+          avatar: profile.avatar, 
+          addresses: profile.addresses 
+        };
         localStorage.setItem('user_profiles', JSON.stringify(profiles));
       } else {
-        // legacy fallback
         localStorage.setItem('userProfile', JSON.stringify(profile));
       }
     } catch (e) {}
@@ -145,7 +154,17 @@ const Profile: React.FC = () => {
     }
   };
 
-  // Mock orders data
+  const handleAddWishlistToCart = (item: any) => {
+    addToCart({
+      id: item.id,
+      name: item.name,
+      brand: item.brand,
+      price: item.price,
+      imageUrl: item.imageUrl,
+      stock: 10,
+    }, 1);
+  };
+
   const orders = JSON.parse(localStorage.getItem('orders') || '[]');
 
   return (
@@ -156,11 +175,10 @@ const Profile: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           
-          {/* Sidebar Navigation */}
+          {/* Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-lg p-6">
               
-              {/* Avatar Section */}
               <div className="text-center mb-6 pb-6 border-b">
                 <div className="relative inline-block">
                   <img 
@@ -182,7 +200,6 @@ const Profile: React.FC = () => {
                 <p className="text-sm text-gray-500">{profile.email}</p>
               </div>
 
-              {/* Menu Items */}
               <nav className="space-y-2">
                 <button
                   onClick={() => setActiveTab('info')}
@@ -218,6 +235,23 @@ const Profile: React.FC = () => {
                 >
                   <MapPin size={20} />
                   Địa chỉ giao hàng
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('wishlist')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                    activeTab === 'wishlist' 
+                      ? 'bg-yellow-100 text-yellow-700 font-semibold' 
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Heart size={20} />
+                  <span>Sản phẩm yêu thích</span>
+                  {wishlist.length > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                      {wishlist.length}
+                    </span>
+                  )}
                 </button>
 
                 <button
@@ -401,6 +435,101 @@ const Profile: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Wishlist Tab */}
+              {activeTab === 'wishlist' && (
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                      <Heart className="text-red-500" />
+                      Sản phẩm yêu thích ({wishlist.length})
+                    </h2>
+                    {wishlist.length > 0 && (
+                      <button 
+                        onClick={() => {
+                          if (window.confirm('Bạn có chắc muốn xóa tất cả sản phẩm yêu thích?')) {
+                            clearWishlist();
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-700 font-semibold text-sm flex items-center gap-1"
+                      >
+                        <Trash2 size={16} />
+                        Xóa tất cả
+                      </button>
+                    )}
+                  </div>
+
+                  {wishlist.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Heart size={60} className="mx-auto text-gray-300 mb-4" />
+                      <p className="text-gray-600 mb-4">Chưa có sản phẩm yêu thích</p>
+                      <button 
+                        onClick={() => navigate('/products')}
+                        className="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold px-6 py-2 rounded-lg transition"
+                      >
+                        Khám phá sản phẩm
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {wishlist.map((item, index) => (
+                        <div key={`wishlist-${item.id}-${index}`} className="border rounded-lg overflow-hidden hover:shadow-lg transition">
+                          <div className="flex gap-4 p-4">
+                            <img 
+                              src={item.imageUrl} 
+                              alt={item.name}
+                              className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg cursor-pointer flex-shrink-0"
+                              onClick={() => navigate(`/product/${item.id}`)}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-gray-500 uppercase font-semibold">{item.brand}</p>
+                              <h3 
+                                className="font-bold text-gray-800 hover:text-yellow-600 cursor-pointer mt-1 truncate"
+                                onClick={() => navigate(`/product/${item.id}`)}
+                              >
+                                {item.name}
+                              </h3>
+                              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                <p className="text-lg font-bold text-red-600">
+                                  {item.price.toLocaleString('vi-VN')} VNĐ
+                                </p>
+                                {item.oldPrice && (
+                                  <p className="text-sm text-gray-400 line-through">
+                                    {item.oldPrice.toLocaleString('vi-VN')} VNĐ
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex border-t">
+                            <button 
+                              onClick={() => {
+                                handleAddWishlistToCart(item);
+                              }}
+                              className="flex-1 flex items-center justify-center gap-2 py-3 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 font-semibold transition"
+                            >
+                              <ShoppingCart size={18} />
+                              <span className="hidden sm:inline">Thêm vào giỏ</span>
+                              <span className="sm:hidden">Giỏ hàng</span>
+                            </button>
+                            <button 
+                              onClick={() => {
+                                if (window.confirm('Xóa sản phẩm này khỏi danh sách yêu thích?')) {
+                                  removeFromWishlist(item.id);
+                                }
+                              }}
+                              className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold transition border-l"
+                            >
+                              <Trash2 size={18} />
+                              Xóa
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

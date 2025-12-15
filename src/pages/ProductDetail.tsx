@@ -6,16 +6,20 @@ import { ShoppingCart, Heart, Truck, Shield, RotateCcw, Home, ChevronRight, Minu
 import type { ProductWithImage } from '../types/product';
 import { useProducts } from '../hooks/useProducts';
 import { useCart } from '../contexts/CartContext';
+import { useWishlist } from '../contexts/WishlistContext';
 import { toast } from 'react-toastify';
 
 const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { products, loading } = useProducts();
+  const { addToCart } = useCart();
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
 
   const product = products.find(p => p.id === id);
+  const inWishlist = product ? isInWishlist(product.id) : false;
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -43,26 +47,44 @@ const ProductDetail: React.FC = () => {
     );
   }
 
-  const { addToCart } = useCart();
-
   const handleAddToCart = () => {
-    addToCart({
+  addToCart(
+    {
       id: product.id,
       name: product.name,
       brand: product.brand,
       price: product.price,
       imageUrl: product.imageUrl,
       stock: product.stock,
-    }, quantity);
+    },
+    quantity
+  );
+};
 
-    toast.success('Đã thêm vào giỏ hàng');
+
+
+  const handleToggleWishlist = () => {
+    if (!product) return;
+    
+    if (inWishlist) {
+      removeFromWishlist(product.id);
+    } else {
+      addToWishlist({
+        id: product.id,
+        name: product.name,
+        brand: product.brand,
+        price: product.price,
+        oldPrice: product.oldPrice,
+        imageUrl: product.imageUrl,
+        model: product.model,
+      });
+    }
   };
 
   const discountPercentage = product.oldPrice 
     ? Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)
     : 0;
 
-  // Mock thêm ảnh (trong thực tế sẽ có nhiều ảnh từ API)
   const productImages = [product.imageUrl, product.imageUrl, product.imageUrl];
 
   return (
@@ -85,7 +107,6 @@ const ProductDetail: React.FC = () => {
           
           {/* Left: Images */}
           <div className="space-y-4">
-            {/* Main Image */}
             <div className="relative overflow-hidden rounded-xl border-2 border-gray-200">
               <img 
                 src={productImages[selectedImage]} 
@@ -99,7 +120,6 @@ const ProductDetail: React.FC = () => {
               )}
             </div>
 
-            {/* Thumbnail Images */}
             <div className="flex gap-3">
               {productImages.map((img, index) => (
                 <div 
@@ -184,15 +204,24 @@ const ProductDetail: React.FC = () => {
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <button 
-                onClick={handleAddToCart}
-                className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-4 px-6 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+  onClick={handleAddToCart}
+  className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-4 px-6 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+>
+  <ShoppingCart size={20} />
+  Thêm vào giỏ hàng
+</button>
+
+              
+              <button 
+                onClick={handleToggleWishlist}
+                className={`border-2 font-bold py-4 px-6 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${
+                  inWishlist 
+                    ? 'border-red-500 bg-red-50 text-red-600 hover:bg-red-100' 
+                    : 'border-yellow-600 text-yellow-600 hover:bg-yellow-50'
+                }`}
               >
-                <ShoppingCart size={20} />
-                Thêm vào giỏ hàng
-              </button>
-              <button className="border-2 border-yellow-600 text-yellow-600 hover:bg-yellow-50 font-bold py-4 px-6 rounded-lg transition-all duration-300 flex items-center justify-center gap-2">
-                <Heart size={20} />
-                Yêu thích
+                <Heart size={20} className={inWishlist ? 'fill-red-600' : ''} />
+                {inWishlist ? 'Đã yêu thích' : 'Yêu thích'}
               </button>
             </div>
 
@@ -223,7 +252,7 @@ const ProductDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Related Products Section (Optional) */}
+        {/* Related Products */}
         <div className="mt-16">
           <h2 className="text-2xl font-bold text-gray-800 mb-6">Sản phẩm tương tự</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">

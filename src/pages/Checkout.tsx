@@ -355,12 +355,13 @@ const Checkout: React.FC = () => {
               </div>
 
               <button 
-                type="submit"
-                className="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-4 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-              >
-                <ShieldCheck size={20} />
-                Đặt hàng
-              </button>
+  type="submit"
+  className="w-full bg-yellow-600 hover:bg-yellow-700 text-black font-bold py-4 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+>
+  <ShieldCheck size={20} />
+  Đặt hàng
+</button>
+
 
               <div className="mt-6 space-y-2 text-xs text-gray-600 text-center">
                 <p>🔒 Thông tin của bạn được bảo mật</p>
